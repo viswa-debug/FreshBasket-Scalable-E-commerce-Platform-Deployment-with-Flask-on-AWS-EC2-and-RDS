@@ -183,45 +183,67 @@ def items():
 @app.route('/place_order', methods=['POST'])
 def place_order():
     if 'user_id' not in session:
-        return jsonify(success=False, message="User not logged in")
+        flash("You need to log in to place an order.", "error")
+        return redirect(url_for('login'))
     
-    data = request.get_json()
-    delivery_address = data.get('address', 'Default Address')
-    payment_method = data['payment_method']
-    items = data['items']
-    total_price = data['total_price']
+    # Get data from the form
+    delivery_address = request.form.get('address', 'Default Address')
+    payment_method = request.form.get('payment')
+    total_price = float(request.form.get('total_price', 0))
     
-    # Insert order into the database with error handling
+    # Fetch cart items from session
+    cart_items = session.get('cart_items', [])
+    
+    if not cart_items:
+        flash("Your cart is empty!", "error")
+        return redirect(url_for('cart'))
+    
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # Insert order into orders table
+        # Insert order into the orders table
         cursor.execute(
-            '''INSERT INTO orders 
+            '''
+            INSERT INTO orders 
             (user_id, delivery_address, payment_method, status, order_date, total_price) 
-            VALUES (%s, %s, %s, %s, %s, %s)''',
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ''',
             (session['user_id'], delivery_address, payment_method, 'Yet to Ship', datetime.now(), total_price)
         )
+        
+        # Get the last inserted order ID
         order_id = cursor.lastrowid
         
-        # Insert each item into order_items table
-        for item in items:
+        # Insert order items into the order_items table
+        for item in cart_items:
             cursor.execute(
-                '''INSERT INTO order_items 
-                (order_id, item_name, quantity, price) 
-                VALUES (%s, %s, %s, %s)''',
-                (order_id, item['name'], item['quantity'], item['price'])
+                '''
+                INSERT INTO order_items (order_id, item_name, item_price, item_quantity)
+                VALUES (%s, %s, %s, %s)
+                ''',
+                (order_id, item['name'], item['price'], item['quantity'])
             )
         
-        conn.commit()  # Commit the transaction after all queries are successful
-        cursor.close()
-        conn.close()
-        return jsonify(success=True)
+        # Commit the transaction
+        conn.commit()
+        
+        # Clear the cart after placing the order
+        session.pop('cart_items', None)
+        
+        flash("Order placed successfully!", "success")
+        return redirect(url_for('user_dashboard'))
     
     except Exception as e:
-        conn.rollback()  # Rollback the transaction in case of error
-        return jsonify(success=False, message=str(e))
+        conn.rollback()
+        flash(f"Error placing order: {str(e)}", "error")
+        return redirect(url_for('cart'))
+    
+    finally:
+        cursor.close()
+        conn.close()
+
+
 @app.route('/user_dashboard')
 def user_dashboard():
     if 'user_id' not in session:
