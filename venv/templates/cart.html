@@ -163,7 +163,7 @@
         <!-- Checkout Section -->
         <div class="checkout-section">
             <h3>Checkout</h3>
-            <form action="#" method="POST">
+            <form action="/place_order" method="POST">
                 <label for="address">Select Delivery Address:</label>
                 <select id="address" name="address">
                     <option value="default">Default Address (Registered)</option>
@@ -181,4 +181,34 @@
         </div>
     </div>
 </body>
+<script>
+    document.querySelector('form').addEventListener('submit', function (e) {
+        e.preventDefault(); // Prevent default form submission
+        
+        // Gather form data
+        const formData = new FormData(e.target);
+        const data = {
+            address: formData.get('address'),
+            payment_method: formData.get('payment'),
+            total_price: 100  // Example value; calculate dynamically
+        };
+        
+        // Send the data as JSON
+        fetch('/place_order', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(data => {
+            alert(data.message); // Display response
+        })
+        .catch(error => {
+            console.error('Error:', error);
+        });
+    });
+</script>
+
 </html>
